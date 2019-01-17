@@ -1,5 +1,6 @@
 import cv2
 import datetime
+import argparse
 
 now = datetime.datetime.now()
 
@@ -8,7 +9,12 @@ frame_count = 0
 skip_frames = 0
 threshold = .2
 
-vidcap = cv2.VideoCapture('movie.mp4')
+ap = argparse.ArgumentParser()
+ap.add_argument("-v", "--video", required=True,
+	help="path to our file")
+args = vars(ap.parse_args())
+
+vidcap = cv2.VideoCapture(args["video"])
 success,image = vidcap.read()
 
 is_found = False
