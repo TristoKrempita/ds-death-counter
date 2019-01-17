@@ -1,6 +1,7 @@
 import cv2
 import datetime
 import argparse
+import os
 
 now = datetime.datetime.now()
 
@@ -8,6 +9,9 @@ death_frame_count = 0
 frame_count = 0
 skip_frames = 0
 threshold = .2
+
+if not os.path.exists("frames"):
+    os.makedirs("frames")
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video", required=True,
@@ -31,7 +35,7 @@ while success:
 
     frame_count += 1
     #look at every 51st frame
-    if skip_frames<50: 
+    if skip_frames < 50: 
         continue
     success,image = vidcap.read()
     print(f'Read a new frame: {frame_count}')#, success)
@@ -48,12 +52,12 @@ while success:
 
     #shows image of death with frame number as name
     if was_found and not(is_found):
-        death_frame_count+=1
+        death_frame_count += 1
         cv2.imwrite(f"frames/frame{frame_count}.jpg", prev_frame)
 
     was_found = is_found
 
 print('='*50)
 secs = (datetime.datetime.now()-now).seconds
-print("Time to completion: %sh:%sm:%ss" %((secs//3600)%24,(secs//60)%60,secs%60))
-print("Deaths: ",death_frame_count)
+print("Elapsed time: %sh:%sm:%ss" %((secs//3600)%24, (secs//60)%60, secs%60))
+print("Deaths registered: ", death_frame_count)
