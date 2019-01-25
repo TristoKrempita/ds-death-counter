@@ -37,23 +37,14 @@ def main():
     dt = datetime.datetime.now() - t0
     print("App exiting, total time: {:,.2f} sec.".format(dt.total_seconds()))
 
-    print("Synchronous version done in {:,.2f} seconds.".format(dt.total_seconds()))
     print(f"Deaths registered: {death_count}")
 
 
 async def read_frame(frames, frames_to_analyze):
     global vidcap
     for _ in range(frames-1):
-        if not (vidcap.grab()):
-            # Stop loop:
-            try:
-                loop.stop()
-                pending = asyncio.Task.all_tasks()
-                loop.run_until_complete(asyncio.gather(*pending))
-            except RuntimeError:
-                print("Shutdown")
-            print("Shutdown complete ...")
-        await asyncio.sleep(0)
+        vidcap.grab()
+#       await asyncio.sleep(0)
     else:
         current_frame = vidcap.read()[1]
     print("Read 50 frames")
