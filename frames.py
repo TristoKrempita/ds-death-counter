@@ -2,64 +2,69 @@ import cv2
 import datetime
 import argparse
 import os
+import asyncio
 
-now = datetime.datetime.now()
-
-death_count = 0
-frame_count = 0
-skip_frames = 0
-threshold = .2
-
-#create frames/
 if not os.path.exists("frames"):
     os.makedirs("frames")
 
-#CLI
+t0 = datetime.datetime.now()
 ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video", required=True,
-	help="path to our file")
+                help="path to our file")
 args = vars(ap.parse_args())
-
-#Capture video and get first frame
-vidcap = cv2.VideoCapture(args["video"])
-success,image = vidcap.read()
-
-is_found = False
+loop = asyncio.get_event_loop()
+threshold = .2
+death_count = 0
 was_found = False
-
 template = cv2.imread('youdied.png')
-while success:
+frames_to_analyze = asyncio.Queue()
+vidcap = cv2.VideoCapture(args["video"])
 
-    skip_frames += 1
-    #read frames  
-    success = vidcap.grab()
+def main():
 
-    frame_count += 1
-    #look at every 51st frame
-    if skip_frames < 50: 
-        continue
-    success,image = vidcap.read()
-    print(f'Read a new frame: {frame_count}')#, success)
-    skip_frames = 0
+    length = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    #finding "you died" text
-    res = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
-    max_val= cv2.minMaxLoc(res)[1]
-    
+    tasks1 = [(n, loop.create_task(read_frame(50,frames_to_analyze))) for n in range(int(length/50))]
+    tasks2 = [(m, loop.create_task(analyze_frame(threshold, template, frames_to_analyze))) for m in range(int(length / 50))]
+    tasks = tasks1 + tasks2
+    print("T1",tasks1)
+    print("T2",tasks2)
+    final_task = None
+    for n, t in tasks:
+        final_task = asyncio.gather(t)
+    loop.run_until_complete(final_task)
 
+    dt = datetime.datetime.now() - t0
+    print("App exiting, total time: {:,.2f} sec.".format(dt.total_seconds()))
+
+    print("Synchronous version done in {:,.2f} seconds.".format(dt.total_seconds()))
+    print(f"Deaths registered: {death_count}")
+
+
+async def read_frame(frames, frames_to_analyze):
+    global vidcap
+    for _ in range(frames):
+        current_frame = vidcap.read()[1]
+    await frames_to_analyze.put(current_frame)
+
+
+async def analyze_frame(threshold,template,frames_to_analyze):
+    global vidcap
+    global was_found
+    global death_count
+    frame = await frames_to_analyze.get()
+    res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+    max_val = cv2.minMaxLoc(res)[1]
     is_found = max_val >= threshold
-    print(f"Found death: {is_found}")
-    if is_found:
-        prev_frame = image
-
-    #shows image of death with frame number as name
-    if was_found and not(is_found):
+    print(is_found)
+    if was_found and not is_found:
         death_count += 1
-        cv2.imwrite(f"frames/frame{frame_count}.jpg", prev_frame)
-
+        await writing_to_file(death_count,frame)
     was_found = is_found
 
-print('='*50)
-secs = (datetime.datetime.now()-now).seconds
-print(f"Elapsed time: {(secs//3600)%24}h:{(secs//60)%60}m:{secs%60}s")
-print(f"Deaths registered: {death_count}")
+
+async def writing_to_file(death_count, frame):
+    cv2.imwrite(f"frames/frame{death_count}.jpg", frame)
+
+if __name__ == '__main__':
+    main()
