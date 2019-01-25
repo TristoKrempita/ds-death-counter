@@ -14,14 +14,14 @@ ap.add_argument("-v", "--video", required=True,
                 help="path to our file")
 args = vars(ap.parse_args())
 
-
-loop = asyncio.get_event_loop()
 threshold = .2
 death_count = 0
 was_found = False
 template = cv2.imread('youdied.png')
-frames_to_analyze = asyncio.Queue()
 vidcap = cv2.VideoCapture(args["video"])
+
+loop = asyncio.get_event_loop()
+frames_to_analyze = asyncio.Queue()
 
 
 def main():
@@ -44,25 +44,40 @@ def main():
 async def read_frame(frames, frames_to_analyze):
     global vidcap
     for _ in range(frames-1):
-        vidcap.grab()
+        if not (vidcap.grab()):
+            # Stop loop:
+            try:
+                loop.stop()
+                pending = asyncio.Task.all_tasks()
+                loop.run_until_complete(asyncio.gather(*pending))
+            except RuntimeError:
+                print("Shutdown")
+            print("Shutdown complete ...")
+        await asyncio.sleep(0)
     else:
         current_frame = vidcap.read()[1]
+    print("Read 50 frames")
     await frames_to_analyze.put(current_frame)
 
 
-async def analyze_frame(threshold,template,frames_to_analyze):
+async def analyze_frame(threshold, template, frames_to_analyze):
     global vidcap
     global was_found
     global death_count
     frame = await frames_to_analyze.get()
-    res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
-    max_val = cv2.minMaxLoc(res)[1]
-    is_found = max_val >= threshold
-    print(is_found)
+    is_found = await processing_frame(frame)
     if was_found and not is_found:
         death_count += 1
         await writing_to_file(death_count, frame)
     was_found = is_found
+
+
+async def processing_frame(frame):
+    res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+    max_val = cv2.minMaxLoc(res)[1]
+    is_found = max_val >= threshold
+    print(is_found)
+    return is_found
 
 
 async def writing_to_file(death_count, frame):
