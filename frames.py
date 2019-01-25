@@ -4,6 +4,7 @@ import argparse
 import os
 import asyncio
 
+#   Making CLI
 if not os.path.exists("frames"):
     os.makedirs("frames")
 
@@ -12,6 +13,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video", required=True,
                 help="path to our file")
 args = vars(ap.parse_args())
+
+
 loop = asyncio.get_event_loop()
 threshold = .2
 death_count = 0
@@ -20,18 +23,15 @@ template = cv2.imread('youdied.png')
 frames_to_analyze = asyncio.Queue()
 vidcap = cv2.VideoCapture(args["video"])
 
+
 def main():
 
     length = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    tasks1 = [(n, loop.create_task(read_frame(50,frames_to_analyze))) for n in range(int(length/50))]
-    tasks2 = [(m, loop.create_task(analyze_frame(threshold, template, frames_to_analyze))) for m in range(int(length / 50))]
-    tasks = tasks1 + tasks2
-    print("T1",tasks1)
-    print("T2",tasks2)
-    final_task = None
-    for n, t in tasks:
-        final_task = asyncio.gather(t)
+    tasks = []
+    for _ in range(int(length / 50)):
+        tasks.append(loop.create_task(read_frame(50, frames_to_analyze)))
+        tasks.append(loop.create_task(analyze_frame(threshold, template, frames_to_analyze)))
+    final_task = asyncio.gather(*tasks)
     loop.run_until_complete(final_task)
 
     dt = datetime.datetime.now() - t0
@@ -43,7 +43,9 @@ def main():
 
 async def read_frame(frames, frames_to_analyze):
     global vidcap
-    for _ in range(frames):
+    for _ in range(frames-1):
+        vidcap.grab()
+    else:
         current_frame = vidcap.read()[1]
     await frames_to_analyze.put(current_frame)
 
@@ -59,7 +61,7 @@ async def analyze_frame(threshold,template,frames_to_analyze):
     print(is_found)
     if was_found and not is_found:
         death_count += 1
-        await writing_to_file(death_count,frame)
+        await writing_to_file(death_count, frame)
     was_found = is_found
 
 
