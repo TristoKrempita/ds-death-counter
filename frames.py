@@ -27,6 +27,7 @@ frames_to_analyze = asyncio.Queue()
 def main():
 
     length = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(int(length / 50))
     tasks = []
     for _ in range(int(length / 50)):
         tasks.append(loop.create_task(read_frame(50, frames_to_analyze)))
@@ -49,6 +50,7 @@ async def read_frame(frames, frames_to_analyze):
         current_frame = vidcap.read()[1]
     print("Read 50 frames")
     await frames_to_analyze.put(current_frame)
+    del current_frame
 
 
 async def analyze_frame(threshold, template, frames_to_analyze):
@@ -56,22 +58,23 @@ async def analyze_frame(threshold, template, frames_to_analyze):
     global was_found
     global death_count
     frame = await frames_to_analyze.get()
-    is_found = await processing_frame(frame)
+    is_found = await loop.run_in_executor(None, processing_frame, frame)
     if was_found and not is_found:
         death_count += 1
-        await writing_to_file(death_count, frame)
+        await loop.run_in_executor(None, writing_to_file, death_count, frame)
     was_found = is_found
 
 
-async def processing_frame(frame):
+def processing_frame(frame):
     res = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
     max_val = cv2.minMaxLoc(res)[1]
     is_found = max_val >= threshold
+
     print(is_found)
     return is_found
 
 
-async def writing_to_file(death_count, frame):
+def writing_to_file(death_count, frame):
     cv2.imwrite(f"frames/frame{death_count}.jpg", frame)
 
 if __name__ == '__main__':
