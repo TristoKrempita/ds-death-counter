@@ -77,5 +77,6 @@ def processing_frame(frame):
 def writing_to_file(death_count, frame):
     cv2.imwrite(f"frames/frame{death_count}.jpg", frame)
 
+
 if __name__ == '__main__':
     main()
